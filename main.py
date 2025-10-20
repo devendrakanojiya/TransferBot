@@ -1,5 +1,9 @@
+import os
 import logging
 import re
+import signal
+import sys
+from aiohttp import web
 from telegram import Update
 from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes, ConversationHandler
 
@@ -16,10 +20,13 @@ WAITING_FOR_GROUP = 1
 # Store user media temporarily
 user_media = {}
 
+# Global application instance
+app_instance = None
+
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Send a message when the command /starttt is issued."""
+    """Send a message when the command /start is issued."""
     await update.message.reply_text(
-        '👋 Hello World!\n\n'
+        'Copyright Freax\n\n'
         'I can help you send media from personal chat to any group.\n\n'
         '📷 Photos\n'
         '🎥 Videos\n'
@@ -34,18 +41,17 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Send help information."""
     help_text = """
-
 <b>Step 1: Send Media</b>
+Send me any of the following:
 • 📷 Photo/Video
 • 📄 File/Audio
 • 😀 Sticker/GIF
 • 💬 Text message (must be in double quotes)
 
 <b>Step 2: Provide Group Info</b>
-After sending media, send destination group.
-You can provide:
-• Group username (e.g, <code>@mygroup</code>)
-• Group chat ID (e.g, <code>-1001234567890</code>)
+After sending media, You can provide:
+• Group username (e.g., <code>@mygroup</code>)
+• Group chat ID (e.g., <code>-1001234567890</code>)
 ━━━━━━━━━━━━━━━━━━━━
 
 <b>📝 Text Messages</b>
@@ -114,7 +120,6 @@ async def handle_media(update: Update, context: ContextTypes.DEFAULT_TYPE):
         f'📤 {media_name} received!\n\n'
         'Now send me the group username (e.g., @groupname) or group chat ID where you want to send this.\n\n'
         'Use /cancel to abort.'
-        'Use /helppp for command usage guidance'
     )
     
     return WAITING_FOR_GROUP
@@ -143,7 +148,6 @@ async def handle_quoted_text(update: Update, context: ContextTypes.DEFAULT_TYPE)
             '💬 Text message received!\n\n'
             'Now send me the group username (e.g., @groupname) or group chat ID where you want to send this.\n\n'
             'Use /cancel to abort.'
-            'Use /helppp for command usage'
         )
         
         return WAITING_FOR_GROUP
@@ -217,7 +221,7 @@ async def receive_group_info(update: Update, context: ContextTypes.DEFAULT_TYPE)
             f'1. The bot is added to the group\n'
             f'2. The bot has permission to send messages\n'
             f'3. The username/ID is correct\n\n'
-            f'Need help finding group info? Use /help'
+            f'Need help finding group info? Use /helppp'
         )
         logger.error(f"Error sending media: {e}")
     
@@ -238,43 +242,90 @@ async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
     return ConversationHandler.END
 
+async def error_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Handle errors."""
+    logger.error(f"Exception while handling an update: {context.error}")
+
+# Web server for Render health checks
+async def health_check(request):
+    """Health check endpoint for Render."""
+    return web.Response(text="Bot is running!")
+
+async def root(request):
+    """Root endpoint."""
+    return web.Response(text="Telegram Media Transfer Bot is Active!")
+
+async def start_web_server():
+    """Start the web server for Render."""
+    app = web.Application()
+    app.router.add_get('/', root)
+    app.router.add_get('/health', health_check)
+    
+    port = int(os.environ.get('PORT', 10000))
+    runner = web.AppRunner(app)
+    await runner.setup()
+    site = web.TCPSite(runner, '0.0.0.0', port)
+    await site.start()
+    logger.info(f"Web server started on port {port}")
+
+async def post_init(application: Application):
+    """Post initialization hook."""
+    await start_web_server()
+
 def main():
     """Start the bot."""
-    # Replace 'YOUR_BOT_TOKEN' with your actual bot token
-    BOT_TOKEN = '8232825601:AAE412GnfxH-70qx-oCeHyMAiFR_bj27J1o'
+    global app_instance
     
-    # Create the Application
-    application = Application.builder().token(BOT_TOKEN).build()
+    # Get token from environment variable
+    BOT_TOKEN = os.environ.get('BOT_TOKEN', "8232825601:AAE412GnfxH-70qx-oCeHyMAiFR_bj27J1o")
     
-    # Conversation handler for media workflow
-    conv_handler = ConversationHandler(
-        entry_points=[
-            MessageHandler(
-                filters.PHOTO | filters.Document.ALL | filters.VIDEO | 
-                filters.AUDIO | filters.Sticker.ALL | filters.ANIMATION,
-                handle_media
-            ),
-            MessageHandler(
-                filters.TEXT & ~filters.COMMAND,
-                handle_quoted_text
-            )
-        ],
-        states={
-            WAITING_FOR_GROUP: [
-                MessageHandler(filters.TEXT & ~filters.COMMAND, receive_group_info)
+    if not BOT_TOKEN:
+        logger.error("BOT_TOKEN environment variable not set!")
+        print("Error: Please set BOT_TOKEN environment variable")
+        return
+    
+    try:
+        # Create the Application
+        application = Application.builder().token(BOT_TOKEN).post_init(post_init).build()
+        app_instance = application
+        
+        # Conversation handler for media workflow
+        conv_handler = ConversationHandler(
+            entry_points=[
+                MessageHandler(
+                    filters.PHOTO | filters.Document.ALL | filters.VIDEO | 
+                    filters.AUDIO | filters.Sticker.ALL | filters.ANIMATION,
+                    handle_media
+                ),
+                MessageHandler(
+                    filters.TEXT & ~filters.COMMAND,
+                    handle_quoted_text
+                )
             ],
-        },
-        fallbacks=[CommandHandler('cancel', cancel)],
-    )
-    
-    # Add handlers
-    application.add_handler(CommandHandler("starttt", start))
-    application.add_handler(CommandHandler("helppp", help_command))
-    application.add_handler(conv_handler)
-    
-    # Start the Bot
-    logger.info("Bot started!")
-    application.run_polling(allowed_updates=Update.ALL_TYPES)
+            states={
+                WAITING_FOR_GROUP: [
+                    MessageHandler(filters.TEXT & ~filters.COMMAND, receive_group_info)
+                ],
+            },
+            fallbacks=[CommandHandler('cancel', cancel)],
+        )
+        
+        # Add handlers
+        application.add_handler(CommandHandler("starttt", start))
+        application.add_handler(CommandHandler("helppp", help_command))
+        application.add_handler(conv_handler)
+        application.add_error_handler(error_handler)
+        
+        # Start the Bot
+        logger.info("Bot started successfully!")
+        application.run_polling(
+            allowed_updates=Update.ALL_TYPES,
+            drop_pending_updates=True
+        )
+        
+    except Exception as e:
+        logger.error(f"Failed to start bot: {e}")
+        raise
 
 if __name__ == '__main__':
     main()
