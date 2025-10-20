@@ -17,7 +17,7 @@ WAITING_FOR_GROUP = 1
 user_media = {}
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Send a message when the command /start is issued."""
+    """Send a message when the command /starttt is issued."""
     await update.message.reply_text(
         '👋 Hello World!\n\n'
         'I can help you send media from personal chat to any group.\n\n'
@@ -28,7 +28,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         '😀 Stickers\n'
         '🎞 GIFs/Animations\n'
         '💬 Text (in double quotes)\n\n'
-        'Use /help to learn how to use the bot.'
+        'Use /helppp to learn how to use the bot.'
     )
 
 async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -57,8 +57,8 @@ To send text messages, enclose them in double quotes:
 ━━━━━━━━━━━━━━━━━━━━
 <b>⚙️ Commands</b>
 
-/start - Start the bot
-/help - Show this help message
+/starttt - Start the bot
+/helppp - Show this help message
 /cancel - Cancel current operation
 ━━━━━━━━━━━━━━━━━━━━
 
@@ -114,7 +114,7 @@ async def handle_media(update: Update, context: ContextTypes.DEFAULT_TYPE):
         f'📤 {media_name} received!\n\n'
         'Now send me the group username (e.g., @groupname) or group chat ID where you want to send this.\n\n'
         'Use /cancel to abort.'
-        'Use /help for command usage guidance'
+        'Use /helppp for command usage guidance'
     )
     
     return WAITING_FOR_GROUP
@@ -143,6 +143,7 @@ async def handle_quoted_text(update: Update, context: ContextTypes.DEFAULT_TYPE)
             '💬 Text message received!\n\n'
             'Now send me the group username (e.g., @groupname) or group chat ID where you want to send this.\n\n'
             'Use /cancel to abort.'
+            'Use /helppp for command usage'
         )
         
         return WAITING_FOR_GROUP
@@ -267,8 +268,8 @@ def main():
     )
     
     # Add handlers
-    application.add_handler(CommandHandler("start", start))
-    application.add_handler(CommandHandler("help", help_command))
+    application.add_handler(CommandHandler("starttt", start))
+    application.add_handler(CommandHandler("helppp", help_command))
     application.add_handler(conv_handler)
     
     # Start the Bot
